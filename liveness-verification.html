@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Verificación de Identidad con Liveness</title>
+    <script src="./public/js/face-api.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            padding: 30px;
+            max-width: 800px;
+            width: 100%;
+        }
+
+        .title {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2em;
+        }
+
+        .video-container {
+            position: relative;
+            display: flex;
+            justify-content: center;
+            margin-bottom: 30px;
+        }
+
+        video {
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            border-radius: 15px;
+        }
+
+        .status-panel {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .status-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 10px;
+            background: white;
+            border-radius: 10px;
+            border-left: 4px solid #e9ecef;
+        }
+
+        .status-item.success {
+            border-left-color: #28a745;
+        }
+
+        .status-item.warning {
+            border-left-color: #ffc107;
+        }
+
+        .status-item.danger {
+            border-left-color: #dc3545;
+        }
+
+        .indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #e9ecef;
+        }
+
+        .indicator.success {
+            background: #28a745;
+        }
+
+        .indicator.warning {
+            background: #ffc107;
+        }
+
+        .indicator.danger {
+            background: #dc3545;
+        }
+
+        .instructions {
+            background: #e3f2fd;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            font-size: 1.1em;
+            text-align: center;
+            color: #1976d2;
+        }
+
+        .verification-complete {
+            background: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 10px;
+            padding: 20px;
+            text-align: center;
+            display: none;
+        }
+
+        .verification-complete.show {
+            display: block;
+            animation: slideIn 0.5s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1em;
+            transition: all 0.3s ease;
+        }
+
+        .btn:hover {
+            background: #5a6fd8;
+            transform: translateY(-2px);
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e9ecef;
+            border-radius: 4px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #28a745, #20c997);
+            border-radius: 4px;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">🔒 Verificación de Identidad con Liveness</h1>
+        
+        <div class="instructions" id="instructions">
+            Sigue las instrucciones para completar la verificación de identidad
+        </div>
+
+        <div class="video-container">
+            <video id="inputVideo" width="640" height="480" autoplay muted playsinline></video>
+            <canvas id="overlay" width="640" height="480"></canvas>
+        </div>
+
+        <div class="status-panel">
+            <div class="status-item" id="face-detection">
+                <span>🎯 Detección de Rostro</span>
+                <div class="indicator" id="face-indicator"></div>
+            </div>
+            <div class="status-item" id="liveness-check">
+                <span>👁️ Verificación de Vida</span>
+                <div class="indicator" id="liveness-indicator"></div>
+            </div>
+            <div class="status-item" id="identity-match">
+                <span>🆔 Coincidencia de Identidad</span>
+                <div class="indicator" id="identity-indicator"></div>
+            </div>
+            <div class="status-item" id="verification-status">
+                <span>✅ Estado de Verificación</span>
+                <div class="indicator" id="verification-indicator"></div>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progress-fill"></div>
+            </div>
+        </div>
+
+        <div class="verification-complete" id="verification-complete">
+            <h2>🎉 ¡Verificación Completa!</h2>
+            <p>Tu identidad ha sido verificada exitosamente.</p>
+            <button class="btn" onclick="startFullVerification()">Iniciar Verificación Completa</button>
+        </div>
+    </div>
+
+    <script src="./public/js/liveness-verification.js"></script>
+</body>
+</html>

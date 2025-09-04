@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Sistema Avanzado de Verificación de Identidad</title>
+    <script src="./public/js/face-api.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .main-container {
+            background: white;
+            border-radius: 25px;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.15);
+            overflow: hidden;
+            max-width: 1200px;
+            width: 100%;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            min-height: 700px;
+        }
+
+        .video-section {
+            background: #f8f9fa;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .control-section {
+            padding: 30px;
+            background: white;
+        }
+
+        .logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo h1 {
+            color: #1e3c72;
+            font-size: 1.8em;
+            margin-bottom: 5px;
+        }
+
+        .logo p {
+            color: #6c757d;
+            font-size: 0.9em;
+        }
+
+        .video-container {
+            position: relative;
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 15px 35px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+
+        video {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+        }
+
+        .security-badge {
+            background: linear-gradient(45deg, #28a745, #20c997);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .verification-steps {
+            background: #f8f9fa;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 25px;
+        }
+
+        .step {
+            display: flex;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #e9ecef;
+        }
+
+        .step:last-child {
+            border-bottom: none;
+        }
+
+        .step-number {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: #e9ecef;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-right: 15px;
+            font-weight: bold;
+            font-size: 0.9em;
+        }
+
+        .step-number.active {
+            background: #2a5298;
+            color: white;
+        }
+
+        .step-number.completed {
+            background: #28a745;
+            color: white;
+        }
+
+        .step-text {
+            flex: 1;
+            color: #495057;
+        }
+
+        .step-status {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #e9ecef;
+        }
+
+        .step-status.active {
+            background: #ffc107;
+            animation: pulse 2s infinite;
+        }
+
+        .step-status.completed {
+            background: #28a745;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        .live-feedback {
+            background: #e3f2fd;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            text-align: center;
+            font-weight: 500;
+            color: #1976d2;
+            min-height: 50px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .metric {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+        }
+
+        .metric-value {
+            font-size: 1.5em;
+            font-weight: bold;
+            color: #1e3c72;
+        }
+
+        .metric-label {
+            color: #6c757d;
+            font-size: 0.8em;
+            margin-top: 5px;
+        }
+
+        .action-button {
+            width: 100%;
+            background: linear-gradient(135deg, #1e3c72, #2a5298);
+            color: white;
+            border: none;
+            padding: 15px;
+            border-radius: 15px;
+            font-size: 1.1em;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            opacity: 0.5;
+            pointer-events: none;
+        }
+
+        .action-button.enabled {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .action-button.enabled:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(30, 60, 114, 0.3);
+        }
+
+        .security-features {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+
+        .security-feature {
+            display: flex;
+            align-items: center;
+            margin-bottom: 8px;
+            font-size: 0.9em;
+            color: #495057;
+        }
+
+        .security-feature:last-child {
+            margin-bottom: 0;
+        }
+
+        .security-feature::before {
+            content: "🔒";
+            margin-right: 8px;
+        }
+
+        .warning-message {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .warning-message.show {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .main-container {
+                grid-template-columns: 1fr;
+                max-width: 100%;
+                margin: 10px;
+                border-radius: 15px;
+            }
+
+            .video-section {
+                padding: 20px;
+            }
+
+            .control-section {
+                padding: 20px;
+            }
+
+            .video-container {
+                width: 100%;
+                max-width: 400px;
+            }
+
+            video {
+                width: 100%;
+                height: auto;
+                max-width: 400px;
+            }
+
+            canvas {
+                width: 100%;
+                height: auto;
+                max-width: 400px;
+            }
+
+            .logo h1 {
+                font-size: 1.5em;
+            }
+
+            .metrics-grid {
+                grid-template-columns: 1fr;
+                gap: 10px;
+            }
+
+            .step {
+                padding: 8px 0;
+            }
+
+            .step-text {
+                font-size: 0.9em;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 10px;
+            }
+
+            .container, .main-container {
+                margin: 5px;
+                padding: 15px;
+            }
+
+            .video-section, .control-section {
+                padding: 15px;
+            }
+
+            .logo h1 {
+                font-size: 1.3em;
+            }
+
+            .logo p {
+                font-size: 0.8em;
+            }
+
+            .step-text {
+                font-size: 0.85em;
+            }
+
+            .metric {
+                padding: 10px;
+            }
+
+            .metric-value {
+                font-size: 1.3em;
+            }
+        }
+
+        /* Estilos específicos para iOS Safari */
+        @supports (-webkit-touch-callout: none) {
+            video {
+                -webkit-playsinline: true;
+                object-fit: cover;
+            }
+        }
+
+        /* Orientación móvil */
+        @media screen and (orientation: portrait) and (max-width: 768px) {
+            .video-container {
+                margin-bottom: 15px;
+            }
+            
+            video, canvas {
+                border-radius: 15px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="main-container">
+        <div class="video-section">
+            <div class="security-badge">
+                🛡️ Verificación Segura
+            </div>
+            
+            <div class="video-container">
+                <video id="inputVideo" width="400" height="300" autoplay muted playsinline></video>
+                <canvas id="overlay" width="400" height="300"></canvas>
+            </div>
+
+            <div class="metrics-grid">
+                <div class="metric">
+                    <div class="metric-value" id="confidence-score">0%</div>
+                    <div class="metric-label">Confianza</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-value" id="liveness-score">0%</div>
+                    <div class="metric-label">Liveness</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="control-section">
+            <div class="logo">
+                <h1>🔐 VerifyID Pro</h1>
+                <p>Sistema Avanzado de Verificación Biométrica</p>
+            </div>
+
+            <div class="warning-message" id="warning-message">
+                ⚠️ Asegúrate de estar en un lugar bien iluminado y mira directamente a la cámara.
+            </div>
+
+            <div class="warning-message" id="mobile-camera-request" style="display: none; background: #d1ecf1; border-color: #bee5eb;">
+                📱 Para dispositivos móviles: Toca "Permitir" cuando se solicite acceso a la cámara
+                <button onclick="requestCameraPermission()" style="margin-top: 10px; padding: 8px 16px; background: #17a2b8; color: white; border: none; border-radius: 5px;">
+                    🎥 Activar Cámara
+                </button>
+            </div>
+
+            <div class="warning-message" id="browser-compatibility-info" style="display: none; background: #fff3cd; border-color: #ffeaa7;">
+                🌐 <strong>Navegadores Compatibles:</strong><br>
+                📱 <strong>Android:</strong> Chrome 53+, Firefox 36+, Samsung Internet 4+<br>
+                🍎 <strong>iOS:</strong> Safari 11+, Chrome iOS 53+<br>
+                💻 <strong>Desktop:</strong> Chrome 53+, Firefox 36+, Safari 11+, Edge 12+<br><br>
+                
+                <strong>Si tienes problemas:</strong><br>
+                1. Actualiza tu navegador<br>
+                2. Permite permisos de cámara<br>
+                3. Usa HTTPS si es posible<br>
+                4. Intenta con otro navegador
+            </div>
+
+            <div class="live-feedback" id="live-feedback">
+                Inicializando sistema de verificación...
+            </div>
+
+            <div class="verification-steps">
+                <div class="step" id="step-1">
+                    <div class="step-number" id="step-number-1">1</div>
+                    <div class="step-text">Detección de rostro</div>
+                    <div class="step-status" id="step-status-1"></div>
+                </div>
+                <div class="step" id="step-2">
+                    <div class="step-number" id="step-number-2">2</div>
+                    <div class="step-text">Prueba de vida (Liveness)</div>
+                    <div class="step-status" id="step-status-2"></div>
+                </div>
+                <div class="step" id="step-3">
+                    <div class="step-number" id="step-number-3">3</div>
+                    <div class="step-text">Análisis biométrico</div>
+                    <div class="step-status" id="step-status-3"></div>
+                </div>
+                <div class="step" id="step-4">
+                    <div class="step-number" id="step-number-4">4</div>
+                    <div class="step-text">Verificación de identidad</div>
+                    <div class="step-status" id="step-status-4"></div>
+                </div>
+            </div>
+
+            <button class="action-button" id="verify-button" onclick="startCompleteVerification()">
+                🚀 Iniciar Verificación Completa
+            </button>
+
+            <div class="security-features">
+                <div class="security-feature">Detección anti-spoofing avanzada</div>
+                <div class="security-feature">Análisis de micro-expresiones</div>
+                <div class="security-feature">Verificación de textura de piel</div>
+                <div class="security-feature">Análisis de profundidad 3D</div>
+                <div class="security-feature">Encriptación de extremo a extremo</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="./public/js/advanced-verification.js"></script>
+</body>
+</html>
