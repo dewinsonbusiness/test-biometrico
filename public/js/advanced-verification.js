@@ -35,7 +35,9 @@ class AdvancedVerificationSystem {
             identityThreshold: 0.4,  // Reducido de 0.6 a 0.4
             spoofingThreshold: 0.5,  // Reducido de 0.7 a 0.5
             blinkThreshold: 0.3,     // Nuevo umbral para parpadeo
-            earThreshold: 0.25       // Umbral para Eye Aspect Ratio
+            earThreshold: 0.25,       // Umbral para Eye Aspect Ratio
+            maxFaces: 1,             // Máximo número de rostros permitidos (configurable)
+            allowMultipleFaces: false // Permitir múltiples rostros (configurable)
         };
         
         // Instrucciones dinámicas
@@ -347,8 +349,9 @@ class AdvancedVerificationSystem {
             this.drawAdvancedVisualization([detection]);
             
         } else if (detections.length > 1) {
-            this.updateFeedback("⚠️ Se detectan múltiples rostros - Asegúrate de estar solo");
-            this.showWarning("Solo debe haber una persona frente a la cámara");
+            // Manejar múltiples rostros de manera inteligente
+            this.handleMultipleFaces(detections);
+            
         } else {
             this.handleNoFaceDetected();
         }
@@ -727,6 +730,130 @@ class AdvancedVerificationSystem {
         this.ctx.stroke();
     }
 
+    handleMultipleFaces(detections) {
+        console.log(`Se detectaron ${detections.length} rostros`);
+        
+        // Opción 1: Seleccionar el rostro más grande (más cercano a la cámara)
+        if (this.securityThresholds.allowMultipleFaces) {
+            const primaryFace = this.selectPrimaryFace(detections);
+            if (primaryFace) {
+                this.updateFeedback(`🎯 Múltiples rostros detectados - Enfocando en el rostro principal`);
+                this.processFaceDetection(primaryFace);
+                this.drawAdvancedVisualization([primaryFace]);
+                
+                // Dibujar los otros rostros con diferente color
+                this.drawSecondaryFaces(detections.filter(d => d !== primaryFace));
+                return;
+            }
+        }
+        
+        // Opción 2: Modo estricto - solo permitir un rostro
+        if (detections.length <= this.securityThresholds.maxFaces) {
+            this.updateFeedback("⚠️ Se detectan múltiples rostros - Por favor, que solo una persona esté frente a la cámara");
+            this.showWarning("Para mayor seguridad, solo debe haber una persona durante la verificación");
+        } else {
+            this.updateFeedback(`❌ Demasiados rostros detectados (${detections.length}) - Límite máximo: ${this.securityThresholds.maxFaces}`);
+            this.showWarning("Hay demasiadas personas en la imagen. Reduce el número de personas frente a la cámara.");
+        }
+        
+        // Dibujar todos los rostros pero sin procesar
+        this.drawAllFaces(detections);
+    }
+
+    selectPrimaryFace(detections) {
+        // Seleccionar el rostro basado en múltiples criterios
+        let bestFace = null;
+        let bestScore = 0;
+        
+        detections.forEach(detection => {
+            const box = detection.detection.box;
+            const confidence = detection.detection.score;
+            
+            // Calcular puntuación basada en:
+            // 1. Tamaño del rostro (más grande = más cercano)
+            // 2. Confianza de detección
+            // 3. Posición central en la imagen
+            
+            const faceArea = box.width * box.height;
+            const centerX = this.canvas.width / 2;
+            const centerY = this.canvas.height / 2;
+            const faceCenterX = box.x + box.width / 2;
+            const faceCenterY = box.y + box.height / 2;
+            
+            // Distancia al centro (invertida - menor distancia = mejor)
+            const distanceToCenter = Math.sqrt(
+                Math.pow(faceCenterX - centerX, 2) + 
+                Math.pow(faceCenterY - centerY, 2)
+            );
+            const maxDistance = Math.sqrt(centerX * centerX + centerY * centerY);
+            const centerScore = 1 - (distanceToCenter / maxDistance);
+            
+            // Puntuación combinada
+            const score = (faceArea * 0.4) + (confidence * 0.4) + (centerScore * 0.2);
+            
+            if (score > bestScore) {
+                bestScore = score;
+                bestFace = detection;
+            }
+        });
+        
+        console.log(`Rostro principal seleccionado con puntuación: ${bestScore.toFixed(2)}`);
+        return bestFace;
+    }
+
+    drawSecondaryFaces(secondaryDetections) {
+        // Dibujar rostros secundarios con color diferente
+        const resizedDetections = faceapi.resizeResults(secondaryDetections, {
+            width: this.canvas.width,
+            height: this.canvas.height
+        });
+
+        // Dibujar con color naranja para rostros secundarios
+        this.ctx.strokeStyle = '#ff6b35';
+        this.ctx.lineWidth = 2;
+        
+        resizedDetections.forEach(detection => {
+            const box = detection.detection.box;
+            this.ctx.strokeRect(box.x, box.y, box.width, box.height);
+            
+            // Añadir etiqueta
+            this.ctx.fillStyle = '#ff6b35';
+            this.ctx.font = '12px Arial';
+            this.ctx.fillText('Secundario', box.x, box.y - 5);
+        });
+    }
+
+    drawAllFaces(detections) {
+        // Dibujar todos los rostros sin procesarlos
+        const resizedDetections = faceapi.resizeResults(detections, {
+            width: this.canvas.width,
+            height: this.canvas.height
+        });
+
+        // Limpiar canvas
+        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        
+        // Dibujar cada rostro con color de advertencia
+        this.ctx.strokeStyle = '#ffc107';
+        this.ctx.lineWidth = 3;
+        
+        resizedDetections.forEach((detection, index) => {
+            const box = detection.detection.box;
+            this.ctx.strokeRect(box.x, box.y, box.width, box.height);
+            
+            // Añadir número de rostro
+            this.ctx.fillStyle = '#ffc107';
+            this.ctx.font = 'bold 14px Arial';
+            this.ctx.fillText(`${index + 1}`, box.x + 10, box.y + 25);
+        });
+        
+        // Añadir texto de advertencia
+        this.ctx.fillStyle = '#dc3545';
+        this.ctx.font = 'bold 16px Arial';
+        this.ctx.fillText(`${detections.length} rostros detectados`, 10, 25);
+        this.ctx.fillText('Se requiere solo 1 persona', 10, 45);
+    }
+
     handleNoFaceDetected() {
         this.faceDetectionConfidence = 0;
         
@@ -1097,6 +1224,9 @@ window.addEventListener('load', () => {
     
     const verificationSystem = new AdvancedVerificationSystem();
     
+    // Guardar referencia global para cambios de configuración
+    window.verificationSystemInstance = verificationSystem;
+    
     // Manejar cambios de orientación en móviles
     window.addEventListener('orientationchange', () => {
         setTimeout(() => {
@@ -1235,4 +1365,38 @@ function checkBrowserCompatibility() {
     });
     
     return isCompatible;
+}
+
+// Función para cambiar el modo de detección de rostros
+function changeFaceMode(mode) {
+    console.log('Cambiando modo de detección a:', mode);
+    
+    // Buscar instancia del sistema de verificación
+    if (window.verificationSystemInstance) {
+        if (mode === 'flexible') {
+            window.verificationSystemInstance.securityThresholds.allowMultipleFaces = true;
+            window.verificationSystemInstance.securityThresholds.maxFaces = 5;
+            console.log('Modo flexible activado - Se permiten múltiples rostros');
+        } else {
+            window.verificationSystemInstance.securityThresholds.allowMultipleFaces = false;
+            window.verificationSystemInstance.securityThresholds.maxFaces = 1;
+            console.log('Modo estricto activado - Solo se permite 1 rostro');
+        }
+        
+        // Mostrar notificación
+        const feedback = document.getElementById('live-feedback');
+        if (feedback) {
+            const originalText = feedback.textContent;
+            feedback.textContent = mode === 'flexible' ? 
+                '👥 Modo flexible activado - Se permiten múltiples personas' : 
+                '🔒 Modo estricto activado - Solo una persona permitida';
+            feedback.style.background = mode === 'flexible' ? '#d1ecf1' : '#d4edda';
+            
+            // Restaurar texto original después de 3 segundos
+            setTimeout(() => {
+                feedback.textContent = originalText;
+                feedback.style.background = '#e3f2fd';
+            }, 3000);
+        }
+    }
 }
